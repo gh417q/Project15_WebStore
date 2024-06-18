@@ -9,8 +9,7 @@
     <div class="row gx-4 gx-lg-5 justify-content-center">
       <div class="col-md-10 col-lg-8 col-xl-7">
         <div class="site-heading">
-          <h1>Angela's Blog</h1>
-          <span class="subheading">A collection of random musings.</span>
+          <h1>Online Store</h1>
         </div>
       </div>
     </div>
@@ -20,43 +19,49 @@
 <div class="container px-4 px-lg-5">
   <div class="row gx-4 gx-lg-5 justify-content-center">
     <div class="col-md-10 col-lg-8 col-xl-7">
-      <!-- Post preview-->
-      {% for post in all_posts %}
+      <!-- Items -->
+      {% for item in all_items %}
+        <!-- Only admin can view unavailable items -->
+        {% if item.in_stock != -1 or current_user.get_id() == "1" %}
       <div class="post-preview">
-        <a href="{{ url_for('show_post', post_id=post.id) }}">
-          <h2 class="post-title">{{ post.title }}</h2>
-          <h3 class="post-subtitle">{{ post.subtitle }}</h3>
-        </a>
-        <p class="post-meta">
-          Posted by
-          <a href="#">{{post.author.name}}</a>
-          on {{post.date}}
-          <!-- TODO: Only show delete button if user id is 1 (admin user) -->
-          {% if current_user.get_id() == "1" %}
-          <a href="{{url_for('delete_post', post_id=post.id) }}">✘</a>
+        <p><img src="{{url_for('send_uploaded_file', filename=item.image)}}"></p>
+        <p>Price: {{item.price}}</p>
+          {% if item.in_stock == 0 %}
+        <p>Out of Stock</p>
+          {% elif current_user.is_authenticated %}
+        <form action="{{url_for('add_to_cart', cart_id=cart_id)}}" method="post" id="add_to_cart_{{item.id}}">
+          <input type="hidden" id="add_item_{{item.id}}" name="item_id" value="{{item.id}}">
+          <input type="number" id="amount_{{item.id}}" name="amount" value="1" min="0" max="{{item.in_stock}}" step="1" />
+        </form>
+        <button type="submit" form="add_to_cart_{{item.id}}" value="Submit">
+          Add to cart
+        </button>
           {% endif %}
-        </p>
-      </div>
+        <!-- Only admin can delete the item -->
+          {% if current_user.get_id() == "1" %}
+        <form action="{{url_for('edit_item', item_id=item.id)}}" method="get" id="edit_{{item.id}}">
+          <input type="hidden" id="edit_item_{{item.id}}" name="item_id" value="{{item.id}}">
+        </form>
+        <button type="submit" form="edit_{{item.id}}" value="Submit">Edit</button>
+        <input type="checkbox"
+            {% if item.in_stock != -1 %}
+              checked
+            {% endif %}
+              onchange="window.location.href='{{ url_for('update_item_availability', item_id=item.id) }}'">
+          {% endif %}
+       </div>
       <!-- Divider-->
       <hr class="my-4" />
+        {% endif %}
       {% endfor %}
-
-      <!-- New Post -->
-      <!-- TODO: Only show Create Post button if user id is 1 (admin user) -->
-          {% if current_user.get_id() == "1" %}
+      <!-- Only admin can add new item -->
+      {% if current_user.get_id() == "1" %}
       <div class="d-flex justify-content-end mb-4">
-        <a
-          class="btn btn-primary float-right"
-          href="{{url_for('add_new_post')}}"
-          >Create New Post</a
-        >
+        <a class="btn btn-primary float-right" href="{{url_for('add_new_item_to_stock')}}">
+          Add New Item
+        </a>
       </div>
-          {% endif %}
-
-      <!-- Pager-->
-      <div class="d-flex justify-content-end mb-4">
-        <a class="btn btn-secondary text-uppercase" href="#!">Older Posts →</a>
-      </div>
+      {% endif %}
     </div>
   </div>
 </div>

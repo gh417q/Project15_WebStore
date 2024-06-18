@@ -1,5 +1,5 @@
 from datetime import date
-from flask import Flask, abort, render_template, redirect, url_for, flash
+from flask import Flask, abort, render_template, redirect, url_for, flash, send_from_directory, request
 from flask_bootstrap import Bootstrap5
 from flask_gravatar import Gravatar
 from flask_login import UserMixin, login_user, LoginManager, current_user, login_required, logout_user
@@ -27,6 +27,8 @@ pip3 install -r requirements.txt
 This will install the packages from the requirements.txt for this project.
 '''
 
+IMAGE_DIR = "static/assets/img"
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ['SECRET_KEY']
 Bootstrap5(app)
@@ -44,7 +46,7 @@ class Base(DeclarativeBase):
     pass
 
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///posts.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///online_store.db'
 db = SQLAlchemy(model_class=Base)
 db.init_app(app)
 
@@ -78,6 +80,7 @@ class Order(db.Model):
 
 class OrderItems(db.Model):
     __tablename__ = "order_items"
+    id = mapped_column(Integer, primary_key=True)
     order_id = mapped_column(ForeignKey("orders.id"))
     item_id = mapped_column(ForeignKey("items.id"))
     number_ordered = mapped_column(Integer, default=1, nullable=False)
@@ -122,7 +125,7 @@ def register():
         db.session.add(new_user)
         db.session.commit()
         login_user(new_user)  # flask_login method, so it can proceed where "login is required" and be traced
-        return redirect(url_for('get_all_posts'))  # home
+        return redirect(url_for('get_all_items'))  # home
     return render_template("register.html", form=form)
 
 
@@ -139,7 +142,7 @@ def login():
             flash("Login unsuccessful, please register or try again.")
             return redirect(url_for('login'))
         login_user(user)  # flask_login method, so it can proceed where "login is required" and be traced
-        return redirect(url_for('get_all_posts'))  # home
+        return redirect(url_for('get_all_items'))  # home
     return render_template("login.html", form=form)
 
 
@@ -147,7 +150,7 @@ def login():
 @login_required
 def logout():
     logout_user()
-    return redirect(url_for('get_all_posts'))
+    return redirect(url_for('get_all_items'))
 
 
 # Use a decorator so only an admin user can add a new item to stock
@@ -156,18 +159,44 @@ def logout():
 def add_new_item_to_stock():
     form = AddItemForm()
     if form.validate_on_submit():
-        db.session.add(Item(name=form.name.data, price=form.price.data, image=form.image.data))
+        db.session.add(Item(name=form.name.data, price=form.price.data, image=form.image.data, in_stock=form.amount.data))
         db.session.commit()
         return redirect(url_for("get_all_items"))
-    return render_template("add-item.html", form=form)
+    return render_template("add-item.html", form=form, is_edit=False)
+
+
+
+# Only an admin user can edit item
+@app.route("/edit-item/<int:item_id>", methods=["GET", "POST"])
+@admin_only
+def edit_item(item_id):
+    item = db.get_or_404(Item, item_id)
+    edit_form = AddItemForm(
+        name=item.name,
+        price=item.price,
+        image=item.image,
+        in_stock=item.in_stock,
+    )
+    if edit_form.validate_on_submit():
+        item.name = edit_form.name.data
+        item.price = edit_form.price.data
+        item.image = edit_form.image.data
+        item.in_stock = edit_form.amount.data
+        db.session.commit()
+        return redirect(url_for("get_all_items"))
+    return render_template("add-item.html", form=edit_form, is_edit=True)
 
 
 # Use a decorator so only an admin user can delete item
-@app.route("/delete/<int:item_id>")
+@app.route("/update_item/<int:item_id>")
 @admin_only
-def delete_item(item_id: int):
+def update_item_availability(item_id: int):
+    # Mark as unavailable (in_stock = -1), can't just delete, it may be in existing orders / history
     item_to_delete = db.get_or_404(Item, item_id)
-    db.session.delete(item_to_delete)
+    if item_to_delete.in_stock == -1:
+        item_to_delete.in_stock = 0
+    else:
+        item_to_delete.in_stock = -1
     db.session.commit()
     return redirect(url_for('get_all_items'))
 
@@ -176,29 +205,38 @@ def delete_item(item_id: int):
 def get_all_items():
     result = db.session.execute(db.select(Item))
     items = result.scalars().all()
-    cart_id = -1
+    cart_id = 0
     if current_user.is_authenticated:
-        user_cart = db.session.execute(db.select(Order).where(Order.customer_id == current_user.get_id()))\
-            .where(Order.date.is_(null())).scalar()
+        user_cart = db.session.execute(db.select(Order).where(Order.customer_id == current_user.get_id())\
+            .where(Order.order_date.is_(null()))).scalar()
         if user_cart is not None:
             cart_id = user_cart.id
-    return render_template("index.html", all_items=items, cart_id = cart_id)
+    return render_template("index.html", all_items=items, cart_id=cart_id)
 
 
 # Allow logged-in users to add items to cart
-@app.route("/cart/<int:cart_id/int:item_id>/<int:amount>", methods=["GET", "POST"])
+@app.route("/cart/<int:cart_id>", methods=["POST"])
 @login_required
-def add_to_cart(cart_id: int, item_id: int, amount: int):
+def add_to_cart(cart_id: int):
+    print("Adding item")
+    item_id = request.values.get("item_id")
+    print(f"Item ID: {item_id}")
+    amount = int(request.values.get("amount"))
     item = db.get_or_404(Item, item_id)
     number_in_stock = item.in_stock
     if number_in_stock == 0:
+        flash("Sorry, this item is currently not available.")
+        return redirect(url_for('get_all_items'))
+    if number_in_stock == -1:
         flash("Sorry, this item is no longer available.")
         return redirect(url_for('get_all_items'))
     # user_cart =\
     #     db.session.execute(db.select(Order).where(Order.customer_id == user_id)).where(Order.date.is_(null())).scalar()
     # if user_cart is None:  # first item in new cart
-    if cart_id == -1:
-        db.session.add(Order(customer_id=current_user.get_id()))
+    if cart_id == 0:
+        new_cart = Order(customer_id=current_user.get_id())
+        db.session.add(new_cart)
+        cart_id = new_cart.id
     if amount > number_in_stock:
         flash(f"Only {number_in_stock} items available.")
         amount = number_in_stock
@@ -215,7 +253,7 @@ def view_cart(cart_id: int):
     # user_cart =\
     #     db.session.execute(db.select(Order).where(Order.customer_id == user_id)).where(Order.date.is_(null())).scalar()
     # if user_cart is None:
-    if cart_id == -1:
+    if cart_id == 0:
         flash("Your cart is empty.")
         return redirect(url_for('get_all_items'))
     cart_items = db.session.execute(db.select(OrderItems).where(OrderItems.order_id == cart_id))
@@ -270,6 +308,11 @@ def about():
 @app.route("/contact")
 def contact():
     return render_template("contact.html")
+
+
+@app.route('/item/<filename>')
+def send_uploaded_file(filename=''):
+    return send_from_directory(IMAGE_DIR, filename)
 
 
 if __name__ == "__main__":
