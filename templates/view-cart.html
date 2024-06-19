@@ -1,22 +1,21 @@
 {% include "header.html" %}
 
 <!-- Page Header-->
-<header
-  class="masthead"
-  style="background-image: url('../static/assets/img/home-bg.jpg')"
->
+<header class="masthead" style="background-image: url('{{post.img_url}}')">
   <div class="container position-relative px-4 px-lg-5">
     <div class="row gx-4 gx-lg-5 justify-content-center">
       <div class="col-md-10 col-lg-8 col-xl-7">
-        <div class="site-heading">
-          <h1>Online Store</h1>
+        <div class="post-heading">
+          <h2 class="subheading">Your shopping cart</h2>
         </div>
       </div>
     </div>
   </div>
 </header>
-<!-- Main Content-->
-<div class="container px-4 px-lg-5">
+{% from 'bootstrap5/form.html' import render_form %}
+<!-- Post Content -->
+<article>
+  <div class="container px-4 px-lg-5">
         {% with messages = get_flashed_messages() %}
           {% if messages %}
             {% for message in messages %}
@@ -24,17 +23,10 @@
             {% endfor %}
           {% endif %}
         {% endwith %}
-  <div class="row gx-4 gx-lg-5 justify-content-center">
-    {% if cart_id != 0 %}
-        <a class="btn btn-primary float-right" href="{{url_for('view_cart', cart_id=cart_id)}}">
-          View Cart
-        </a>
-    {% endif %}
+    <div class="row gx-4 gx-lg-5 justify-content-center">
     <div class="col-md-10 col-lg-8 col-xl-7">
       <!-- Items -->
-      {% for item in all_items %}
-        <!-- Only admin can view unavailable items -->
-        {% if item.in_stock != -1 or current_user.get_id() == "1" %}
+      {% for item in cart_items %}
       <div class="post-preview">
         <p><img src="{{url_for('send_uploaded_file', filename=item.image)}}"></p>
         <p>Price: {{item.price}}</p>
@@ -64,18 +56,9 @@
       </div>
       <!-- Divider-->
       <hr class="my-4" />
-        {% endif %}
       {% endfor %}
-      <!-- Only admin can add new item -->
-      {% if current_user.get_id() == "1" %}
-      <div class="d-flex justify-content-end mb-4">
-        <a class="btn btn-primary float-right" href="{{url_for('add_new_item_to_stock')}}">
-          Add New Item
-        </a>
-      </div>
-      {% endif %}
     </div>
   </div>
-</div>
+</article>
 
 {% include "footer.html" %}

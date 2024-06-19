@@ -175,7 +175,7 @@ def edit_item(item_id):
         name=item.name,
         price=item.price,
         image=item.image,
-        in_stock=item.in_stock,
+        amount=item.in_stock,
     )
     if edit_form.validate_on_submit():
         item.name = edit_form.name.data
@@ -218,9 +218,9 @@ def get_all_items():
 @app.route("/cart/<int:cart_id>", methods=["POST"])
 @login_required
 def add_to_cart(cart_id: int):
-    print("Adding item")
+    # print("Adding item")
     item_id = request.values.get("item_id")
-    print(f"Item ID: {item_id}")
+    # print(f"Item ID: {item_id}")
     amount = int(request.values.get("amount"))
     item = db.get_or_404(Item, item_id)
     number_in_stock = item.in_stock
@@ -236,12 +236,18 @@ def add_to_cart(cart_id: int):
     if cart_id == 0:
         new_cart = Order(customer_id=current_user.get_id())
         db.session.add(new_cart)
+        db.session.commit()
         cart_id = new_cart.id
-    if amount > number_in_stock:
+    if amount > number_in_stock:  # this block must work for additional order too (if there is existing order below)
         flash(f"Only {number_in_stock} items available.")
         amount = number_in_stock
     item.in_stock = item.in_stock - amount
-    db.session.add(OrderItems(order_id=cart_id, item_id=item_id, number_ordered=amount))
+    existing_order = db.session.execute(db.select(OrderItems).where(OrderItems.order_id == cart_id)\
+        .where(OrderItems.item_id == item_id)).scalar()
+    if existing_order is None:  # this item is not in cart
+        db.session.add(OrderItems(order_id=cart_id, item_id=item_id, number_ordered=amount))
+    else:  # this item already is in this cart
+        existing_order.number_ordered += amount
     db.session.commit()
     return redirect(url_for('get_all_items'))
 

@@ -22,5 +22,5 @@ class AddItemForm(FlaskForm):
     price = FloatField("Item Price", validators=[DataRequired()])
     image = StringField("Item Image Name", validators=[DataRequired()])
     amount = IntegerField("Number Available", validators=[DataRequired()])
-    submit = SubmitField("Add Item")
+    submit = SubmitField("Submit Item")
 
