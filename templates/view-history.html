@@ -1,0 +1,55 @@
+{% include "header.html" %}
+
+<!-- Page Header-->
+<header class="masthead" style="background-image: url('../static/assets/img/post-bg.jpg')">
+  <div class="container position-relative px-4 px-lg-5">
+    <div class="row gx-4 gx-lg-5 justify-content-center">
+      <div class="col-md-10 col-lg-8 col-xl-7">
+        <div class="post-heading">
+          <h2 class="subheading">Orders History</h2>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+{% from 'bootstrap5/form.html' import render_form %}
+<!-- Post Content -->
+<article>
+  <div class="container px-4 px-lg-5">
+    <div class="row gx-4 gx-lg-5 justify-content-center">
+    <div class="col-md-10 col-lg-8 col-xl-7">
+      <!-- Items -->
+      {% if not orders %}
+      No orders yet
+      {% else %}
+        {% for order in orders.keys() %}
+      <div class="post-preview">
+          {% if not order.order_date %}
+          Shopping in progress
+          {% else %}
+          Order Date: {{order.order_date}}
+          {% endif %}
+        <table class="task-table">
+          <tr><th>Item</th><th>Price</th><th>Number ordered</th><th>Total</th></tr>
+          {% set ns = namespace(order_total = 0) %}
+          {% for order_item in orders[order] %}
+          {% set ns.order_total = ns.order_total + order_item["total"] %}
+          <tr>
+            <td><img src="{{url_for('send_uploaded_file', filename=order_item['image'])}}"></td>
+            <td>{{order_item["price"]}}</td>
+            <td>{{order_item["number_ordered"]}}</td>
+            <td>{{order_item["total"]}}</td>
+          </tr>
+          {% endfor %}
+        </table>
+        Order total: {{ ns.order_total }}
+      </div>
+      <!-- Divider-->
+      <hr class="my-4" />
+        {% endfor %}
+      {% endif %}
+    </div>
+  </div>
+</article>
+
+{% include "footer.html" %}

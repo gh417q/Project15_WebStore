@@ -1,7 +1,7 @@
 {% include "header.html" %}
 
 <!-- Page Header-->
-<header class="masthead" style="background-image: url('{{post.img_url}}')">
+<header class="masthead" style="background-image: url('../static/assets/img/post-bg.jpg')">
   <div class="container position-relative px-4 px-lg-5">
     <div class="row gx-4 gx-lg-5 justify-content-center">
       <div class="col-md-10 col-lg-8 col-xl-7">
@@ -26,37 +26,35 @@
     <div class="row gx-4 gx-lg-5 justify-content-center">
     <div class="col-md-10 col-lg-8 col-xl-7">
       <!-- Items -->
-      {% for item in cart_items %}
+      {% set ns = namespace(order_total = 0) %}
+      {% for item in cart %}
+      {% set ns.order_total = ns.order_total + item[1].price*item[0].number_ordered %}
       <div class="post-preview">
-        <p><img src="{{url_for('send_uploaded_file', filename=item.image)}}"></p>
-        <p>Price: {{item.price}}</p>
-          {% if item.in_stock == 0 %}
-        <p>Out of Stock</p>
-          {% elif current_user.is_authenticated %}
-        <form action="{{url_for('add_to_cart', cart_id=cart_id)}}" method="post" id="add_to_cart_{{item.id}}">
-          <input type="hidden" id="add_item_{{item.id}}" name="item_id" value="{{item.id}}">
-          <input type="number" id="amount_{{item.id}}" name="amount" value="1" min="0" max="{{item.in_stock}}" step="1" />
+        <p><img src="{{url_for('send_uploaded_file', filename=item[1].image)}}"></p>
+        <p>Price: {{item[1].price}}</p>
+        <form action="{{url_for('update_cart', cart_id=cart_id)}}" method="post" id="update_cart_{{item[1].id}}">
+          <input type="hidden" id="add_item_{{item[1].id}}" name="item_id" value="{{item[1].id}}">
+          <input type="number" id="amount_{{item[1].id}}" name="amount" value="{{item[0].number_ordered}}" min="0" max="{{item[1].in_stock}}" step="1" />
         </form>
-        <button type="submit" form="add_to_cart_{{item.id}}" value="Submit">
-          Add to cart
+        <p>Total Price: {{item[1].price*item[0].number_ordered}}</p>
+        <button type="submit" form="update_cart_{{item[1].id}}" value="Submit">
+          Update cart
         </button>
-          {% endif %}
-        <!-- Only admin can delete the item -->
-          {% if current_user.get_id() == "1" %}
-        <form action="{{url_for('edit_item', item_id=item.id)}}" method="get" id="edit_{{item.id}}">
-          <input type="hidden" id="edit_item_{{item.id}}" name="item_id" value="{{item.id}}">
+        <form action="{{url_for('update_cart', cart_id=cart_id)}}" method="post" id="delete_cart_item_{{item[1].id}}">
+          <input type="hidden" id="delete_item_{{item[1].id}}" name="item_id" value="{{item[1].id}}">
+          <input type="hidden" id="delete_{{item[1].id}}" name="amount" value="0" />
         </form>
-        <button type="submit" form="edit_{{item.id}}" value="Submit">Edit</button>
-        <input type="checkbox"
-            {% if item.in_stock != -1 %}
-              checked
-            {% endif %}
-              onchange="window.location.href='{{ url_for('update_item_availability', item_id=item.id) }}'">
-          {% endif %}
+        <button type="submit" form="delete_cart_item_{{item[1].id}}" value="Submit">
+          Delete Item
+        </button>
       </div>
       <!-- Divider-->
       <hr class="my-4" />
       {% endfor %}
+      Order total: {{ ns.order_total }}
+      <a class="btn btn-primary float-right" href="{{url_for('checkout', cart_id=cart_id)}}">
+          Checkout
+      </a>
     </div>
   </div>
 </article>

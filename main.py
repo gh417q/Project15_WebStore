@@ -253,7 +253,7 @@ def add_to_cart(cart_id: int):
 
 
 # Allow logged-in user to view the cart
-@app.route("/view-cart/<int:cart_id>", methods=["GET", "POST"])
+@app.route("/view-cart/<int:cart_id>", methods=["GET"])
 @login_required
 def view_cart(cart_id: int):
     # user_cart =\
@@ -262,16 +262,20 @@ def view_cart(cart_id: int):
     if cart_id == 0:
         flash("Your cart is empty.")
         return redirect(url_for('get_all_items'))
-    cart_items = db.session.execute(db.select(OrderItems).where(OrderItems.order_id == cart_id))
-    return render_template("view-cart.html", cart=cart_items)
+    cart_items = db.session.execute(db.select(OrderItems, Item).where(OrderItems.order_id == cart_id) \
+                                    .join(Item, Item.id == OrderItems.item_id))
+    return render_template("view-cart.html", cart=cart_items, cart_id=cart_id)
 
 
 # Allow logged-in user to update the cart
-@app.route("/update-cart/<int:cart_id>/int:item_id>/<int:amount>", methods=["GET", "POST"])
+@app.route("/update-cart/<int:cart_id>", methods=["POST"])
 @login_required
-def update_cart(cart_id: int, item_id: int, amount: int):
-    item_to_update = db.session.execute(db.select(OrderItems).where(OrderItems.order_id == cart_id)) \
-        .where(OrderItems.item_id == item_id).scalar()
+def update_cart(cart_id: int):
+    item_id = request.values.get("item_id")
+    amount = int(request.values.get("amount"))
+    print(f"Order: {cart_id}, Item: {item_id}, Amount: {amount}")
+    item_to_update = db.session.execute(db.select(OrderItems).where(OrderItems.order_id == cart_id) \
+        .where(OrderItems.item_id == item_id)).scalar()
     amount_to_update = amount - item_to_update.number_ordered  # how to update Item.in_stock
     if amount == 0:  # delete the item from cart
         db.session.delete(item_to_update)
@@ -287,11 +291,12 @@ def update_cart(cart_id: int, item_id: int, amount: int):
 
 
 # Allow logged-in user to check out
-@app.route("/checkout/<int:cart_id>", methods=["GET", "POST"])
+@app.route("/checkout/<int:cart_id>", methods=["GET"])
 @login_required
-def checkout(cart_id):
+def checkout(cart_id: int):
     order_co_close = db.get_or_404(Order, cart_id)
     order_co_close.order_date = date.today().strftime("%B %d, %Y")
+    db.session.commit()
     return redirect(url_for("view_order_history"))
 
 
@@ -300,11 +305,21 @@ def checkout(cart_id):
 @login_required
 def view_order_history():
     history = {}
-    orders = db.session.execute(db.select(Order).where(Order.customer_id == current_user.get_id())).scalar()
+    orders = db.session.execute(db.select(Order).where(Order.customer_id == current_user.get_id()))#.scalar()
     for order in orders:
-        history[order] = db.session.execute(db.select(OrderItems).where(OrderItems.order_id == order.id))\
-            .join(Item, Item.id == OrderItems.item_id).scalar()
+        cart_items = db.session.execute(db.select(OrderItems, Item).where(OrderItems.order_id == order[0].id).join(Item, Item.id == OrderItems.item_id))#.scalar()
+        print(f"Order_details: {cart_items}")
+        order_items = []
+        for item in cart_items:
+            order_details = {}
+            order_details["image"] = item[1].image
+            order_details["price"] = item[1].price
+            order_details["number_ordered"] = item[0].number_ordered
+            order_details["total"] = item[1].price*item[0].number_ordered
+            order_items.append(order_details)
+        history[order[0]] = order_items
     return render_template("view-history.html", orders=history)
+
 
 @app.route("/about")
 def about():
@@ -323,3 +338,5 @@ def send_uploaded_file(filename=''):
 
 if __name__ == "__main__":
     app.run(debug=True, port=5002)
+
+
